@@ -1,0 +1,36 @@
+TTTTTTTTTTTTTTTTTTTTTTT     OOOOOOOOO     DDDDDDDDDDDDD             OOOOOOOOO     
+T:::::::::::::::::::::T   OO:::::::::OO   D::::::::::::DDD        OO:::::::::OO   
+T:::::::::::::::::::::T OO:::::::::::::OO D:::::::::::::::DD    OO:::::::::::::OO 
+T:::::TT:::::::TT:::::TO:::::::OOO:::::::ODDD:::::DDDDD:::::D  O:::::::OOO:::::::O
+TTTTTT  T:::::T  TTTTTTO::::::O   O::::::O  D:::::D    D:::::D O::::::O   O::::::O
+        T:::::T        O:::::O     O:::::O  D:::::D     D:::::DO:::::O     O:::::O
+        T:::::T        O:::::O     O:::::O  D:::::D     D:::::DO:::::O     O:::::O
+        T:::::T        O:::::O     O:::::O  D:::::D     D:::::DO:::::O     O:::::O
+        T:::::T        O:::::O     O:::::O  D:::::D     D:::::DO:::::O     O:::::O
+        T:::::T        O:::::O     O:::::O  D:::::D     D:::::DO:::::O     O:::::O
+        T:::::T        O:::::O     O:::::O  D:::::D     D:::::DO:::::O     O:::::O
+        T:::::T        O::::::O   O::::::O  D:::::D    D:::::D O::::::O   O::::::O
+      TT:::::::TT      O:::::::OOO:::::::ODDD:::::DDDDD:::::D  O:::::::OOO:::::::O
+      T:::::::::T       OO:::::::::::::OO D:::::::::::::::DD    OO:::::::::::::OO 
+      T:::::::::T         OO:::::::::OO   D::::::::::::DDD        OO:::::::::OO   
+      TTTTTTTTTTT           OOOOOOOOO     DDDDDDDDDDDDD             OOOOOOOOO 
+      
+ =================================================================================
+ =================================================================================
+ =================================================================================
+ =================================================================================
+ 
+ 
+Cell profiler library importer:
+ иииииииииииииииииииииииииииииии
+ 
+ 	-Create a module importer:					DONE
+ 	-Add error handling (exception):			DONE
+ 	-searching engine for CellProfiler path:	DONE (for Windows only)	
+	-New module installer:					
+	-Graphical module:(optional)
+	-handling of diverse OS for the path:
+	
+Cell Profiler Stress granule Counting Module:
+ииииииииииииииииииииииииииииииииииииииииииии
+
