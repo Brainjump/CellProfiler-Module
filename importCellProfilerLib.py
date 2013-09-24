@@ -40,7 +40,7 @@ def loadCellProfilerLibrary(libpath):
         print "\n\n", libpath, "\n\n"
         lib = "\\".join([libpath, "library.zip"])
         if not os.path.isfile(lib):
-            raise ImportModuleException(2, "the file doesn't exist, check your path in \"pathlib\"file")
+            raise ImportModuleException(2, "Can't find %s\\library.zip" % libpath)
         sys.path.append(lib)
         
         #TODO: add test for other system
