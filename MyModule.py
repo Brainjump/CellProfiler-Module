@@ -8,6 +8,8 @@ import sys
 import matplotlib
 import importCellProfilerLib as icpl
 
+
+import scipy.ndimage
 import cellprofiler.cpmodule as cpm
 import cellprofiler.settings as cps
 from cellprofiler.cpmath.otsu import otsu
@@ -52,17 +54,26 @@ class MyModule(cpm.CPModule):
         print "the threshold compute by the Otsu algorythm is %f" % global_threshold
         
         #
-        #Bynary the "Blue" Image and set this new image in image_collection
+        #Bynary the "Blue" Image 
         #
         binary_image = np.logical_and((image_collection[3][0] >= global_threshold), image.mask)
-        new_blue = (binary_image, image_collection[3][1])
+        
+
+        #
+        #labelized the previous image.
+        #
+        labeled_image, object_count = scipy.ndimage.label(binary_image, np.ones((3,3), bool))
+        print "the image got %d detected" % object_count
+        
+        new_blue = (labeled_image, image_collection[3][1])
+        
         image_collection[3] = new_blue
         
         #
         #Set the image_collection attribute for display
         #
         workspace.display_data.image_collection = image_collection
-        
+
 
 
     def display(self, workspace):
