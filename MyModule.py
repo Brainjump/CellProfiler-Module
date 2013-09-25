@@ -8,7 +8,7 @@ import sys
 import matplotlib
 import importCellProfilerLib as icpl
 
-
+import scipy.sparse
 import scipy.ndimage
 import cellprofiler.cpmodule as cpm
 import cellprofiler.settings as cps
@@ -39,11 +39,11 @@ class MyModule(cpm.CPModule):
             if index == 0:
                 title = "Original"
             elif index == 1:
-                title = "Red"
+                title = "GFP-M9M"
             elif index == 2:
-                title = "Green"
+                title = "elF38"
             elif index == 3:
-                title = "Blue"
+                title = "Dapi"
                  
             image_collection.append((image.pixel_data[:,:,index], title))
         
@@ -54,13 +54,12 @@ class MyModule(cpm.CPModule):
         print "the threshold compute by the Otsu algorythm is %f" % global_threshold
         
         #
-        #Bynary the "Blue" Image 
+        #Binary the "Blue" Image 
         #
         binary_image = np.logical_and((image_collection[3][0] >= global_threshold), image.mask)
         
-
         #
-        #labelized the previous image.
+        #label the previous image.
         #
         labeled_image, object_count = scipy.ndimage.label(binary_image, np.ones((3,3), bool))
         print "the image got %d detected" % object_count
@@ -68,6 +67,12 @@ class MyModule(cpm.CPModule):
         new_blue = (labeled_image, image_collection[3][1])
         
         image_collection[3] = new_blue
+        
+        
+        #
+        #delete object witch touch the border. labeled_image is modify after the function
+        #
+        self.filter_on_border(labeled_image)
         
         #
         #Set the image_collection attribute for display
@@ -114,8 +119,38 @@ class MyModule(cpm.CPModule):
  
         return self.__settings
 
-
+    def filter_on_border(self, labeled_image):
+        #
+        #Get outline's pixel of the labeled_image
+        #
+        border_labels = list(labeled_image[0,:])
+        border_labels.extend(labeled_image[:,0])
+        border_labels.extend(labeled_image[labeled_image.shape[0]-1,:])
+        border_labels.extend(labeled_image[:,labeled_image.shape[1]-1])
+        border_labels = np.array(border_labels)
         
+        #
+        #Get the histogram
+        #First: create a coo_matrix (it's just a format: 3 columns. 1 for the row, 1 for the column, the last for the value)
+        #here row[i] = border_label[i], column[i] = 0, value[i] = 1
+        # todense() create the matrix. create a Matrix initialized at 0, with the shape given.
+        #then add the value[i] at the position: (row[i], column[i])
+        #the trick here is column value is always 0, and the value always 1.
+        #So that create the histogram. flatten just convert the matrix into array.
+        #the length of the histogram = number_of_object + 1
+        #
+        
+        histogram = scipy.sparse.coo_matrix((np.ones(border_labels.shape),
+                                             (border_labels,
+                                              np.zeros(border_labels.shape))),
+                                             shape=(np.max(labeled_image)+1,1)).todense()
+                                             
+        histogram = np.array(histogram).flatten()
+        
+        if any(histogram[1:] > 0 ):
+            histogram_image = histogram[labeled_image]
+            labeled_image[histogram_image > 0] = 0
+        return labeled_image
     #===========================================================================
     # def display(self, workspace):
     #     figure = workspace.create_or_find_figure(title="MyModule Display", )
