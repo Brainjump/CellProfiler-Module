@@ -12,6 +12,7 @@ import scipy.sparse
 import scipy.ndimage
 import cellprofiler.cpmodule as cpm
 import cellprofiler.settings as cps
+from cellprofiler.cpmath.cpmorphology import fill_labeled_holes
 from cellprofiler.cpmath.otsu import otsu
 import numpy as np
 
@@ -48,15 +49,18 @@ class MyModule(cpm.CPModule):
             image_collection.append((image.pixel_data[:,:,index], title))
         
         #
-        #Get the global Threshold with Otsu algorythm
+        #Get the global Threshold with Otsu algorithm
         #
         global_threshold = otsu(image_collection[3][0], min_threshold=0, max_threshold=1)
         print "the threshold compute by the Otsu algorythm is %f" % global_threshold
         
+        
+        image_smoothed = self.smooth_image(image_collection[3][0], image.mask, 1)
+        
         #
         #Binary the "Blue" Image 
         #
-        binary_image = np.logical_and((image_collection[3][0] >= global_threshold), image.mask)
+        binary_image = np.logical_and((image_smoothed >= global_threshold), image.mask)
         
         #
         #label the previous image.
@@ -64,20 +68,29 @@ class MyModule(cpm.CPModule):
         labeled_image, object_count = scipy.ndimage.label(binary_image, np.ones((3,3), bool))
         print "the image got %d detected" % object_count
         
-        new_blue = (labeled_image, image_collection[3][1])
         
-        image_collection[3] = new_blue
-        
+        #
+        #Fill the hole
+        #
+        labeled_image = fill_labeled_holes(labeled_image)        
         
         #
         #delete object witch touch the border. labeled_image is modify after the function
         #
-        self.filter_on_border(labeled_image)
+        labeled_image = self.filter_on_border(labeled_image)
+        
+
+        #Filter small object.
+        labeled_image = self.filter_on_size(labeled_image, object_count)
         
         #
         #Set the image_collection attribute for display
         #
+        new_blue = (labeled_image, image_collection[3][1])
+        
+        image_collection[3] = new_blue
         workspace.display_data.image_collection = image_collection
+
 
 
 
@@ -100,7 +113,10 @@ class MyModule(cpm.CPModule):
         
         
         for xy, image in zip(layout, image_collection):
-            figure.subplot_imshow_grayscale(xy[0], xy[1], image[0], image[1])
+            if xy == (1,1):
+                figure.subplot_imshow_labels(xy[0], xy[1], image[0], image[1])
+            else:
+                figure.subplot_imshow_grayscale(xy[0], xy[1], image[0], image[1])
         
     
     def create_settings(self):
@@ -151,7 +167,53 @@ class MyModule(cpm.CPModule):
             histogram_image = histogram[labeled_image]
             labeled_image[histogram_image > 0] = 0
         return labeled_image
-    #===========================================================================
-    # def display(self, workspace):
-    #     figure = workspace.create_or_find_figure(title="MyModule Display", )
-    #===========================================================================
+    
+    def filter_on_size(self, labeled_image, object_count):
+        areas = scipy.ndimage.measurements.sum(np.ones(labeled_image.shape),
+                                               labeled_image,
+                                               range(0, object_count+1))
+        areas = np.array(areas, dtype=int)
+        
+        #set min_size to 40
+        min_allowed_area = np.pi * (40 * 40) / 4
+        
+        area_image = areas[labeled_image]
+        labeled_image[area_image < min_allowed_area] = 0
+        
+        return labeled_image
+    
+    def smooth_image(self, image, mask, sigma):
+        
+        #
+        #Code from CellProfiler
+        #Need explanantion
+        #
+        
+        filter_size = self.calc_smoothing_filter_size() 
+        
+        filter_size = max(int(float(filter_size) / 2.0),1)
+        f = (1/np.sqrt(2.0 * np.pi ) / sigma *
+             np.exp(-0.5 * np.arange(-filter_size, filter_size+1)**2 /
+                    sigma ** 2))
+        def fgaussian(image):
+            output = scipy.ndimage.convolve1d(image, f,
+                                              axis = 0,
+                                              mode='constant')
+            return scipy.ndimage.convolve1d(output, f,
+                                            axis = 1,
+                                            mode='constant')
+        #
+        # Use the trick where you similarly convolve an array of ones to find
+        # out the edge effects, then divide to correct the edge effects
+        #
+        edge_array = fgaussian(mask.astype(float))
+        masked_image = image.copy()
+        masked_image[~mask] = 0
+        smoothed_image = fgaussian(masked_image)
+        masked_image[mask] = smoothed_image[mask] / edge_array[mask]
+        return masked_image
+    
+    def calc_smoothing_filter_size(self):
+        #must be change if setting ask for min size of object
+        range_min = 40
+        return 2.35 * range_min / 3.5
