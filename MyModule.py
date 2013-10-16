@@ -6,7 +6,7 @@ Created on 20 sept. 2013
 import re
 import sys
 import matplotlib
-import importCellProfilerLib as icpl
+#import importCellProfilerLib as icpl
 
 import scipy.sparse
 import scipy.ndimage
@@ -14,7 +14,13 @@ import cellprofiler.cpmodule as cpm
 import cellprofiler.settings as cps
 from cellprofiler.cpmath.cpmorphology import fill_labeled_holes
 from cellprofiler.cpmath.otsu import otsu
+from skimage import filter as skf
+from skimage import morphology as skm
+from skimage.filter import rank as skr
+import scipy.ndimage.morphology as scipym
 import numpy as np
+import scipy
+from scipy import ndimage
 
 class MyModule(cpm.CPModule):
     """this module is a test"""
@@ -27,6 +33,7 @@ class MyModule(cpm.CPModule):
     category = "Plugin Module"
     
     def run(self, workspace):
+    
         image = workspace.image_set.get_image(self.image_name.value)
         image_collection = []
         print "dimension of array = %d" % image.pixel_data.ndim
@@ -48,9 +55,13 @@ class MyModule(cpm.CPModule):
                  
             image_collection.append((image.pixel_data[:,:,index], title))
         
+        
+        image_collection[1] = (image_collection[3][0], "original")
+        image_collection[0] = (image_collection[2][0], "original")
         #
         #Get the global Threshold with Otsu algorithm
         #
+       
         global_threshold = otsu(image_collection[3][0], min_threshold=0, max_threshold=1)
         print "the threshold compute by the Otsu algorythm is %f" % global_threshold
         
@@ -83,6 +94,8 @@ class MyModule(cpm.CPModule):
         #Filter small object.
         labeled_image = self.filter_on_size(labeled_image, object_count)
         
+        image_collection[2] = (labeled_image.copy(), image_collection[2][1])
+        labeled_image = self.split_object(labeled_image)
         #
         #Set the image_collection attribute for display
         #
@@ -94,7 +107,7 @@ class MyModule(cpm.CPModule):
 
 
 
-    def display(self, workspace):
+    def display(self, workspace, figure=None):
         """display the result on a new frame. execute after run()"""
         
         image_collection = workspace.display_data.image_collection
@@ -105,15 +118,18 @@ class MyModule(cpm.CPModule):
         else:
             from moduleException import ModuleException
             raise ModuleException(1, "Image must be load with the module LoadImage and the option \"individual image\"")
-    
-        window_name = "CellProfiler:%s:%d"%(self.module_name,self.module_num)
-        figure = workspace.create_or_find_figure(title="MyModule Display",
-                                                 window_name = window_name,
-                                                 subplots = (2,2))
+        
+        if figure is not None:
+            figure.set_subplots((2,2))
+        else:
+            window_name = "CellProfiler:%s:%d"%(self.module_name,self.module_num)
+            figure = workspace.create_or_find_figure(title="MyModule Display",
+                                                     window_name = window_name,
+                                                     subplots = (2,2))
         
         
         for xy, image in zip(layout, image_collection):
-            if xy == (1,1):
+            if xy == (1,1) or xy == (0,1):
                 figure.subplot_imshow_labels(xy[0], xy[1], image[0], image[1])
             else:
                 figure.subplot_imshow_grayscale(xy[0], xy[1], image[0], image[1])
@@ -181,6 +197,29 @@ class MyModule(cpm.CPModule):
         labeled_image[area_image < min_allowed_area] = 0
         
         return labeled_image
+
+    def split_object(self, labeled_image):
+        """ split object when it's necessary
+        """
+        
+        labeled_image = labeled_image.astype(np.uint16)
+        labeled_image = skr.median(labeled_image, skm.disk(4))
+        labeled_mask = np.zeros_like(labeled_image, dtype=np.uint16)
+        labeled_mask[labeled_image != 0] = 1
+        distance = scipym.distance_transform_edt(labeled_image).astype(np.uint16)
+        distance = skr.mean(distance, skm.disk(20))
+                            
+        l_max = skr.maximum(distance, skm.disk(5))
+        l_max = l_max - distance <= 0
+       
+        l_max = skr.maximum(l_max.astype(np.uint8), skm.disk(6))
+        
+        marker = ndimage.label(l_max)[0]      
+    
+        split_image = skm.watershed(-distance, marker, mask=labeled_mask)
+            
+        return split_image
+    
     
     def smooth_image(self, image, mask, sigma):
         
