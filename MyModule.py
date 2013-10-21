@@ -22,6 +22,9 @@ import numpy as np
 import scipy
 from scipy import ndimage
 
+import skimage.feature as skf
+
+
 class MyModule(cpm.CPModule):
     """this module is a test"""
     
@@ -95,7 +98,7 @@ class MyModule(cpm.CPModule):
         labeled_image = self.filter_on_size(labeled_image, object_count)
         
         image_collection[2] = (labeled_image.copy(), image_collection[2][1])
-        labeled_image = self.split_object(labeled_image)
+        labeled_image = self.split_object2(labeled_image)
         #
         #Set the image_collection attribute for display
         #
@@ -138,7 +141,7 @@ class MyModule(cpm.CPModule):
     def create_settings(self):
         """This method create the settings. This use to set the diverse buttons"""
         
-        #print "Hey, i create the settings for this new module"
+        #print "Hey, i create the sereturn split_imagettings for this new module"
         self.image_name = cps.ImageNameSubscriber(
             "Select the input image",doc = """
             Choose the image to be cropped.""")
@@ -198,29 +201,66 @@ class MyModule(cpm.CPModule):
         
         return labeled_image
 
-    def split_object(self, labeled_image):
+    def split_object1(self, labeled_image):
         """ split object when it's necessary
         """
         
         labeled_image = labeled_image.astype(np.uint16)
+        #binary the Labeled_image
+        binary = np.logical_and((labeled_image > 0), np.ones(labeled_image.shape))
+        
+        #erosion of binary
+        image_erosion = skm.erosion(binary, skm.square(10))
+        marker , object_count = ndimage.label(image_erosion, np.ones((3,3), bool))
+       
+#===============================================================================
+#         print "there is", object_count, "objects"
+#         
+#         labeled_mask =return split_image np.zeros_like(labeled_image, dtype=np.uint16)
+# 
+#         #
+#         split_image = skm.watershed(-binary, marker, mask=labeled_mask)
+#             
+#         
+#===============================================================================
+        return marker
+    
+    
+    def split_object2(self, labeled_image):
+        """ split object when it's necessary
+        """
+        
+        labeled_image = labeled_image.astype(np.uint16)
+
+        labeled_mask = np.zeros_like(labeled_image, dtype=np.uint16)
+        labeled_mask[labeled_image != 0] = 1
+
+        #ift structuring element about center point. This only affects eccentric structuring elements (i.e. selem with even num===============================
+       
         labeled_image = skr.median(labeled_image, skm.disk(4))
         labeled_mask = np.zeros_like(labeled_image, dtype=np.uint16)
         labeled_mask[labeled_image != 0] = 1
         distance = scipym.distance_transform_edt(labeled_image).astype(np.uint16)
-        distance = skr.mean(distance, skm.disk(20))
-                            
+        distance = skr.mean(distance, skm.disk(2))
+         
+         
         l_max = skr.maximum(distance, skm.disk(5))
+        #l_max = skf.peak_local_max(distance, indices=False,labels=labeled_image, footprint=np.ones((3,3)))
         l_max = l_max - distance <= 0
-       
+        
         l_max = skr.maximum(l_max.astype(np.uint8), skm.disk(6))
         
+        import matplotlib.pyplot as plt
+        
+        plt.imshow(l_max)
+        plt.figure()
         marker = ndimage.label(l_max)[0]      
-    
-        split_image = skm.watershed(-distance, marker, mask=labeled_mask)
-            
+        print marker
+        split_image = skm.watershed(-distance, marker)
+        plt.imshow(marker)
+        plt.show()
         return split_image
-    
-    
+        
     def smooth_image(self, image, mask, sigma):
         
         #
