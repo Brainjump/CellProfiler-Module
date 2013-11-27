@@ -22,68 +22,38 @@ import numpy as np
 import scipy
 from scipy import ndimage
 import matplotlib.pyplot as plt
+import cellprofiler
 
-
-class MyModule(cpm.CPModule):
+class IdentifyNuclei(cpm.CPModule):
     """this module is a test"""
     
     #===========================================================================
     # module_name and category attributes must be added on your own classes
     #===========================================================================
-    module_name = "MyModule"
+    module_name = "IdentifyNuclei"
     variable_revision_number = 1 #Version of the module (use for save Pipeline)
     category = "Plugin Module"
 
     
     def run(self, workspace):
-        
-        
-        image = workspace.image_set.get_image(self.image_name.value)
-        image_collection = []
-        print "dimension of array = %d" % image.pixel_data.ndim
-        #
-        #Test if the image was open with option "individual image" in module LoadImages
-        #
-        if  not image.pixel_data.ndim == 3:
-            from moduleException import ModuleException
-            raise ModuleException(1, "Image must be load with the module LoadImage and the option \"individual image\"")
-        image_number = image.pixel_data.shape
-        print "The zvi got %d images" % image_number[2]
-        
-        #
-        #Creation of the image_collection
-        #
-        for index in range(image_number[2]):
-            title = ""
-            if index == 0:
-                title = "Original"
-            elif index == 1:
-                title = "GFP-M9M"
-            elif index == 2:
-                title = "elF38"
-            elif index == 3:
-                title = "Dapi"
-                 
-            image_collection.append((image.pixel_data[:,:,index], title))
-        
-        
-        image_collection[1] = (image_collection[3][0], "original Elf3B")
-        image_collection[0] = (image_collection[2][0], "original DAPI")
  
+        image = workspace.image_set.get_image(self.image_name.value)
+        nuclei_image = image.pixel_data[:,:]
+        image_collection = []
         #
         #Get the global Threshold with Otsu algorithm and smooth nuclei image
         #
 #         nuclei_smoothed = self.smooth_image(image_collection[3][0], image.mask, 1)
-        nuclei_smoothed = image_collection[3][0] 
-        global_threshold_nuclei = otsu(nuclei_smoothed, min_threshold=0, max_threshold=1)
+
+        global_threshold_nuclei = otsu(nuclei_image, min_threshold=0, max_threshold=1)
         print "the threshold compute by the Otsu algorythm is %f" % global_threshold_nuclei      
         
         
         #
-        #Binary the "DAPI" Image (Nuclei) and labelelize the nuclei
+        #Binary thee "DAPI" Image (Nuclei) and labelelize the nuclei
         #
 
-        binary_nuclei = (nuclei_smoothed >= global_threshold_nuclei)
+        binary_nuclei = (nuclei_image >= global_threshold_nuclei)
         labeled_nuclei, object_count = scipy.ndimage.label(binary_nuclei, np.ones((3,3), bool))
         print "the image got %d detected" % object_count
         
@@ -104,68 +74,32 @@ class MyModule(cpm.CPModule):
         labeled_nuclei[labeled_nuclei_canny > 0] = 0
         labeled_nuclei = skr.minimum(labeled_nuclei.astype(np.uint16), skm.disk(3))
         
-        # 
-        #segmentation of the Cell in the Elf3B image
-        #      
-        cell_image = image_collection[0][0]
-        
-        cell_threshold = otsu(cell_image,
-                              min_threshold=0,
-                              max_threshold=1)
-        cell_bg_mark = skm.binary_erosion((cell_image < cell_threshold).astype(np.uint8),                                   
-                                          skm.disk(5))
-        
-
-        marker = labeled_nuclei.copy()
-        number_labeled_nuclei = np.max(marker)
-        marker[cell_bg_mark] = number_labeled_nuclei + 1
-        
-        cell_gradient = skr.gradient(cell_image.astype(np.uint8), skm.disk(3))
-        
-        print "cell threshold = ", cell_threshold
-
-
-#         cell_binary = skr.maximum(cell_binary.astype(np.uint16), skm.disk(5))
-#         cell_binary = fill_labeled_holes(cell_binary)
-#         cell_binary = skm.binary_erosion(cell_binary, skm.disk(5))
-#         distance = scipym.distance_transform_edt(cell_binary).astype(np.uint16)
-#         labeled_nuclei[labeled_nuclei == labeled_nuclei[0][0]] = 0
-        
-        #Set the image_collection attribute for display
-        
-        
-        labeled_cell = skm.watershed(cell_gradient, marker)
-         
-        new_labeled_elf3b = (labeled_cell, image_collection[2][1])
-
-        new_labeled_dapi = (labeled_nuclei, image_collection[3][1])
-        
-        canny_for_test = image_collection[1][0].copy()
-        canny_for_test = skf.sobel(canny_for_test)
-#         canny_for_test_otsu = otsu(canny_for_test, min_threshold=0, max_threshold=1)
-#         canny_for_test = (canny_for_test >= canny_for_test_otsu)
-        
-        plt.figure()
-        plt.imshow(canny_for_test)
-        plt.show()
-        
-        image_collection[2] = new_labeled_elf3b
-        image_collection[3] = new_labeled_dapi
+        image_collection.append((nuclei_image, "Original"))
+        image_collection.append((labeled_nuclei, "Labelized image"))
         workspace.display_data.image_collection = image_collection
+
+        #
+        #Create a new object which will be add to the workspace
+        #
+        objects = cellprofiler.objects.Objects()
+        objects.segmented = labeled_nuclei
+        objects.parent_image = nuclei_image
+        
+        workspace.object_set.add_objects(objects, self.object_name.value)
 
 
     def display(self, workspace, figure=None):
         """display the result on a new frame. execute after run()"""
         
         image_collection = workspace.display_data.image_collection
-        if len(image_collection) == 4:
-            layout = [(0,0), (1,0), (0,1), (1,1)]
+        if len(image_collection) == 2:
+            layout = [(0,0),  (0,1)]
         else:
             from moduleException import ModuleException
             raise ModuleException(1, "Image must be load with the module LoadImage and the option \"individual image\"")
         
         if figure is not None:
-            figure.set_subplots((2,2))
+            figure.set_subplots((1,2))
         else:
             window_name = "CellProfiler:%s:%d"%(self.module_name,self.module_num)
             figure = workspace.create_or_find_figure(title="MyModule Display",
@@ -174,7 +108,7 @@ class MyModule(cpm.CPModule):
         
         
         for xy, image in zip(layout, image_collection):
-            if xy == (1,1) or xy == (0,1):
+            if xy == (0,1):
                 figure.subplot_imshow_labels(xy[0], xy[1], image[0], image[1])
             else:
                 figure.subplot_imshow_grayscale(xy[0], xy[1], image[0], image[1])
@@ -189,14 +123,15 @@ class MyModule(cpm.CPModule):
         self.image_name = cps.ImageNameSubscriber(
             "Select the input image",doc = """
             Choose the image to be cropped.""")
-
+        self.object_name = cps.ObjectNameProvider(
+            "Name the primary objects to be identified",
+            "Nuclei",doc="""
+            Enter the name that you want to call the objects identified by this module.""")
      
     def settings(self):
         """This method return the settings set"""
-        #print "Hey, i return the settings for this new module"
-        return [self.image_name]
+        return [self.image_name, self.object_name]
  
-        return self.__settings
 
     def filter_on_border(self, labeled_image):
         #
@@ -212,7 +147,7 @@ class MyModule(cpm.CPModule):
         #Get the histogram
         #First: create a coo_matrix (it's just a format: 3 columns. 1 for the row, 1 for the column, the last for the value)
         #here row[i] = border_label[i], column[i] = 0, value[i] = 1
-        # todense() create the matrixtwitter rebublic of gamer. create a Matrix initialized at 0, with the shape given.
+        # todense() create the matrix. create a Matrix initialized at 0, with the shape given.
         #then add the value[i] at the position: (row[i], column[i])
         #the trick here is column value is always 0, and the value always 1.
         #So that create the histogram. flatten just convert the matrix into array.
@@ -283,6 +218,8 @@ class MyModule(cpm.CPModule):
         marker = ndimage.label(l_max)[0]
         split_image = skm.watershed(-distance, marker)
         
+        split_image[split_image[0,0] == split_image] = 0
+        
         return split_image
         
     def smooth_image(self, image, mask, sigma):
@@ -291,7 +228,10 @@ class MyModule(cpm.CPModule):
         #Code from CellProfiler
         #Need explanantion
         #
-        
+                #=======================================================================
+        # for thread in self.thread_list:
+        #     thread.wait()
+        #=======================================================================
         filter_size = self.calc_smoothing_filter_size() 
         
         filter_size = max(int(float(filter_size) / 2.0),1)
