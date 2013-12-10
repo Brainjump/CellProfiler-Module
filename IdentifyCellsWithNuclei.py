@@ -45,15 +45,16 @@ class IdentifyCellsWithNuclei(Identify):
         cell_binary = (cell_image >= cell_treshold)
         cell_distance = scipym.distance_transform_edt(cell_binary).astype(np.uint16)
         cell_labeled = skm.watershed(-cell_distance, labeled_nuclei, mask=cell_binary)
-        plt.figure()
-        plt.imshow(cell_image)
-        plt.show()
         
-        
+         
+        #
+        #fil hall and filter on syze the object in cell_labeled
+        #
+        cell_labeled = self.filter_on_border(cell_labeled)
         cell_labeled = fill_labeled_holes(cell_labeled)
-        
+    
         objects = cellprofiler.objects.Objects()
-        objects.segmented = labeled_nuclei
+        objects.segmented = cell_labeled
         objects.parent_image = cell_image
         
         workspace.object_set.add_objects(objects, self.object_name.value)        
@@ -145,7 +146,7 @@ class IdentifyCellsWithNuclei(Identify):
         min_allowed_area = np.pi * (40 * 40) / 4
         
         area_image = areas[labeled_image]
-        labeled_image[area_imag e < min_allowed_area] = 0
+        labeled_image[area_image < min_allowed_area] = 0
         
         return labeled_image
 
