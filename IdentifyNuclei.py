@@ -40,9 +40,7 @@ class IdentifyNuclei(cpm.CPModule):
         image = workspace.image_set.get_image(self.image_name.value)
         nuclei_image = image.pixel_data[:,:]
         image_collection = []
-        plt.figure()
-        plt.imshow(nuclei_image)
-        plt.show()
+      
         #
         #Get the global Threshold with Otsu algorithm and smooth nuclei image
         #

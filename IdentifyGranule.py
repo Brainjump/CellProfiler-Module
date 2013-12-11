@@ -14,6 +14,10 @@ import scipy
 from scipy import ndimage
 import matplotlib.pyplot as plt
 from skimage.morphology.watershed import watershed
+#===============================================================================
+# import skimage.measure as skmes
+#===============================================================================
+
 
 class IdentifyGranule(Identify):
     
@@ -37,22 +41,34 @@ class IdentifyGranule(Identify):
         
         
         local_max_labelize, object_count = scipy.ndimage.label(local_max, np.ones((3,3), bool)) 
-        histo_local_max, toto = np.histogram(local_max_labelize, range(object_count + 2))
+        histo_local_max, not_use = np.histogram(local_max_labelize, range(object_count + 2))
         old = local_max_labelize.copy()
-        print "object count = ", object_count
-        print "toto = ", toto.size
-        print "histo_local_max = ", histo_local_max.size
+    
+        #filter in intensity mean
+        #=======================================================================
+        # 
+        # regionprops_result = skmes.regionprops(local_max_labelize, intensity_image=cell_image)
+        #      
+        # for region in regionprops_result:
+        #     if region["mean_intensity"]
+        #=======================================================================
+    
+        #filter on size
         for i in range(object_count + 1):
             value = histo_local_max[i]       
             if  value > self.range_size.max or value < self.range_size.min:
                 local_max_labelize[local_max_labelize == i] = 0
+        #split granule for each cell
+        cell_labeled = skm.label(cell_labeled)
+        cell_count = np.max(cell_labeled)
         
-        plt.figure()
-        plt.imshow(local_max_labelize)
-        plt.figure()
-        plt.imshow(old)
-        plt.show()
-        
+        for cell_object_value in range(1, cell_count):
+            cell_object_mask = (cell_labeled == cell_object_value)
+            garnule_in_cell = (np.logical_and(cell_object_mask, local_max_labelize))
+            granule_in_cell = skm.label(garnule_in_cell)
+            plt.figure()
+            plt.imshow(granule_in_cell)
+            plt.show()
     def settings(self):
         return [self.primary_objects, self.file_name, self.range_size]
  
@@ -65,7 +81,7 @@ class IdentifyGranule(Identify):
             "Cells",doc="""
             This name will be use to create a file wich indicate the number of granule for each object.""")
         self.range_size = cps.IntegerRange(
-            "Range of Granules size",(5, 40), minval=1, doc='''
+            "Range of Granules area (in pixel)",(5, 40), minval=1, doc='''
             This settings permit to fix minimum and the maximumm size of the granule.''' )
 
 #     def display(self, workspace, figure=None):
