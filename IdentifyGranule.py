@@ -1,5 +1,10 @@
+from cellprofiler.preferences import \
+    DEFAULT_INPUT_FOLDER_NAME, \
+    DEFAULT_OUTPUT_FOLDER_NAME, ABSOLUTE_FOLDER_NAME
+from cellprofiler.modules.loadimages import C_FILE_NAME, C_PATH_NAME
 from cellprofiler.modules.identify import Identify
 import cellprofiler.settings as cps
+
 import cellprofiler
 from cellprofiler.cpmath.cpmorphology import fill_labeled_holes
 from cellprofiler.cpmath.otsu import otsu
@@ -14,6 +19,7 @@ import scipy
 from scipy import ndimage
 import matplotlib.pyplot as plt
 from skimage.morphology.watershed import watershed
+
 #===============================================================================
 # import skimage.measure as skmes
 #===============================================================================
@@ -58,19 +64,35 @@ class IdentifyGranule(Identify):
             value = histo_local_max[i]       
             if  value > self.range_size.max or value < self.range_size.min:
                 local_max_labelize[local_max_labelize == i] = 0
+       
         #split granule for each cell
         cell_labeled = skm.label(cell_labeled)
         cell_count = np.max(cell_labeled)
         
         for cell_object_value in range(1, cell_count):
             cell_object_mask = (cell_labeled == cell_object_value)
-            garnule_in_cell = (np.logical_and(cell_object_mask, local_max_labelize))
-            granule_in_cell = skm.label(garnule_in_cell)
-            plt.figure()
-            plt.imshow(granule_in_cell)
-            plt.show()
+            granule_in_cell = (np.logical_and(cell_object_mask, local_max_labelize))
+            granule_in_cell = skm.label(granule_in_cell)
+            #===================================================================
+            # plt.imshow(granule_in_cell + cell_object_mask)
+            # plt.show()
+            #===================================================================
+        
+        #
+        measurements = workspace.measurements
+        file_name_feature = self.source_file_name_feature
+        filename = measurements.get_current_measurement('Image', file_name_feature)
+        print "filename = ", filename
+        plt.figure()
+        plt.show()
+        
+    @property
+    def source_file_name_feature(self):
+        '''The file name measurement for the exemplar disk image'''
+        return '_'.join((C_FILE_NAME, self.file_name_channel.value))
+    
     def settings(self):
-        return [self.primary_objects, self.file_name, self.range_size]
+        return [self.primary_objects, self.file_name, self.range_size, self.location, self.file_name_channel]
  
     def create_settings(self):
         self.primary_objects = cps.ObjectNameSubscriber(
@@ -83,7 +105,15 @@ class IdentifyGranule(Identify):
         self.range_size = cps.IntegerRange(
             "Range of Granules area (in pixel)",(5, 40), minval=1, doc='''
             This settings permit to fix minimum and the maximumm size of the granule.''' )
-
+        
+        self.location = cps.DirectoryPath(
+            "Output data file location",
+            dir_choices = [ABSOLUTE_FOLDER_NAME, DEFAULT_INPUT_FOLDER_NAME,
+                DEFAULT_OUTPUT_FOLDER_NAME])
+        self.file_name_channel = cps.ImageNameSubscriber(
+            "Select the image channel to get original filename",doc = """
+            get the filename of the channel from the original file.""")
+        
 #     def display(self, workspace, figure=None):
 #         
 #         return self
