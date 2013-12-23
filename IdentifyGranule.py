@@ -77,14 +77,17 @@ class IdentifyGranule(Identify):
             # plt.imshow(granule_in_cell + cell_object_mask)
             # plt.show()
             #===================================================================
-        
+        #
+        #get the filename
         #
         measurements = workspace.measurements
         file_name_feature = self.source_file_name_feature
         filename = measurements.get_current_measurement('Image', file_name_feature)
         print "filename = ", filename
-        plt.figure()
-        plt.show()
+        
+        #
+        #use pandalib to create the file
+        #
         
     @property
     def source_file_name_feature(self):
